@@ -1,5 +1,5 @@
 current directory: /Users/seodong-og/project_vs/stopapp/stopapp/vendor/bundle/ruby/2.6.0/gems/nkf-0.2.0/ext/nkf
-/System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/bin/ruby -I /System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/lib/ruby/2.6.0 -r ./siteconf20251003-4666-insr1e.rb extconf.rb
+/System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/bin/ruby -I /System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/lib/ruby/2.6.0 -r ./siteconf20251004-51144-tk6r03.rb extconf.rb
 creating Makefile
 
 current directory: /Users/seodong-og/project_vs/stopapp/stopapp/vendor/bundle/ruby/2.6.0/gems/nkf-0.2.0/ext/nkf
@@ -13,4 +13,4 @@ ld: warning: search path '/AppleInternal/Library/BuildRoots/ce725a5f-c761-11ee-a
 
 current directory: /Users/seodong-og/project_vs/stopapp/stopapp/vendor/bundle/ruby/2.6.0/gems/nkf-0.2.0/ext/nkf
 make "DESTDIR=" install
-/usr/bin/install -c -m 0755 nkf.bundle ./.gem.20251003-4666-1s7bzcc
+/usr/bin/install -c -m 0755 nkf.bundle ./.gem.20251004-51144-cvbhyf
