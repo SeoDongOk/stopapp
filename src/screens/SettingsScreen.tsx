@@ -18,7 +18,13 @@ type Props = {
 const SettingsScreen: React.FC<Props> = ({navigation}) => {
   return (
     <SafeAreaView style={{flex: 1}}>
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#000',
+        }}>
         <Text>Settings Screen</Text>
         <Button title="Go Back" onPress={() => navigation.goBack()} />
       </View>
