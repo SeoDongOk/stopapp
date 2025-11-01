@@ -28,33 +28,52 @@ fun getUsageData(promise: Promise) {
     }
 
     val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-    val pm = context.packageManager
     val endTime = System.currentTimeMillis()
-    val startTime = endTime - 1000 * 60 * 60 * 24 // 지난 하루
+    val calendar = Calendar.getInstance()
+    calendar.timeInMillis = endTime
+    // Set to start of today
+    calendar.set(Calendar.HOUR_OF_DAY, 0)
+    calendar.set(Calendar.MINUTE, 0)
+    calendar.set(Calendar.SECOND, 0)
+    calendar.set(Calendar.MILLISECOND, 0)
+    val todayStart = calendar.timeInMillis
+    // 1년 전
+    calendar.add(Calendar.YEAR, -1)
+    val oneYearAgo = calendar.timeInMillis
 
-    val stats = usageStatsManager.queryUsageStats(
-        UsageStatsManager.INTERVAL_DAILY,
-        startTime,
-        endTime
-    )
-
+    val pm = context.packageManager
     val resultArray = Arguments.createArray()
 
-    stats?.forEach { stat ->
-        if (stat.totalTimeInForeground > 0) {
-            try {
-                val appInfo = pm.getApplicationInfo(stat.packageName, 0)
-                val appName = pm.getApplicationLabel(appInfo).toString()
-
-                val map = Arguments.createMap()
-                map.putString("packageName", stat.packageName)
-                map.putString("appName", appName) // ✅ 앱 이름 추가
-                map.putDouble("hours", stat.totalTimeInForeground / 1000.0 / 3600.0)
-                resultArray.pushMap(map)
-            } catch (e: PackageManager.NameNotFoundException) {
-                // 시스템 앱 등 패키지명만 존재하는 경우
+    // 날짜별 loop
+    var dayStart = oneYearAgo
+    while (dayStart < todayStart + 24L * 60 * 60 * 1000) {
+        val dayEnd = dayStart + 24L * 60 * 60 * 1000
+        val statsList = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_DAILY,
+            dayStart,
+            dayEnd
+        )
+        if (statsList != null) {
+            for (stats in statsList) {
+                val packageName = stats.packageName
+                val totalMs = stats.totalTimeInForeground
+                if (totalMs > 0) {
+                    try {
+                        val appInfo = pm.getApplicationInfo(packageName, 0)
+                        val appName = pm.getApplicationLabel(appInfo).toString()
+                        val map = Arguments.createMap()
+                        map.putString("packageName", packageName)
+                        map.putString("appName", appName)
+                        map.putDouble("hours", totalMs / 1000.0 / 3600.0)
+                        map.putString("date", Date(dayStart).toString())
+                        resultArray.pushMap(map)
+                    } catch (e: PackageManager.NameNotFoundException) {
+                        // ignore unknown packages
+                    }
+                }
             }
         }
+        dayStart += 24L * 60 * 60 * 1000
     }
 
     promise.resolve(resultArray)
