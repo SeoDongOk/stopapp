@@ -1,15 +1,18 @@
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useState, useRef} from 'react';
 import {
   SafeAreaView,
   Text,
-  Button,
   Platform,
   NativeModules,
   ScrollView,
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {getUsageData} from '../platform/android/bridge';
-import {Calendar} from 'react-native-calendars';
 
 // 스택 내 라우트 이름 정의
 type RootStackParamList = {
@@ -42,52 +45,74 @@ const getTodayString = () => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
-const HomeScreen: React.FC<Props> = ({navigation}) => {
+const toYMD = (d: Date) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+type IntentLauncherModule = {
+  startActivity: (params: {action: string; data?: string}) => void;
+};
+
+const HomeScreen: React.FC<Props> = ({navigation: _navigation}) => {
   const [usageList, setUsageList] = useState<any[] | null>(null);
   const [filteredUsageList, setFilteredUsageList] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayString());
 
-  // const [permissionDenied, setPermissionDenied] = useState(false);
+  // Maintain a continuously growing days array for infinite left scrolling
+  const [days, setDays] = useState(() => {
+    const today = new Date();
+    const initialDays = [];
+    const labels = ['월', '화', '수', '목', '금', '토', '일'];
+    for (let i = -13; i <= 0; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const weekday = (d.getDay() + 6) % 7;
+      initialDays.push({
+        full: toYMD(d),
+        day: String(d.getDate()),
+        label: labels[weekday],
+        isSelected: toYMD(d) === selectedDate,
+      });
+    }
+    return initialDays;
+  });
 
-  const openUsageAccessSettings = () => {
-    if (Platform.OS === 'android') {
-      try {
-        const pkg =
-          NativeModules.PlatformConstants?.getConstants?.().BundleIdentifier ??
-          'com.stopapp';
-        NativeModules.IntentLauncher.startActivity({
-          action: 'android.settings.USAGE_ACCESS_SETTINGS',
-          data: `package:${pkg}`,
-        });
-      } catch (err) {
-        console.warn('Cannot open app settings directly:', err);
-        NativeModules.IntentLauncher.startActivity({
-          action: 'android.settings.USAGE_ACCESS_SETTINGS',
-        });
-      }
+  const scrollViewRef = useRef<ScrollView>(null);
+  const isLoadingMoreRef = useRef(false);
+  const today = new Date();
+  const todayYMD = toYMD(today);
+  const handleAppPress = (pkg?: string) => {
+    if (!pkg) {
+      return;
+    }
+
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const launcher = NativeModules.IntentLauncher as
+      | IntentLauncherModule
+      | undefined;
+
+    if (!launcher?.startActivity) {
+      console.warn('IntentLauncher native module is not available');
+      return;
+    }
+
+    try {
+      launcher.startActivity({
+        action: 'android.settings.APPLICATION_DETAILS_SETTINGS',
+        data: `package:${pkg}`,
+      });
+    } catch (error) {
+      console.warn('Failed to open the app settings screen', error);
     }
   };
 
-  useEffect(() => {
-    const fetchUsage = async () => {
-      try {
-        const data = await getUsageData(); // ✅ 이제 배열로 들어옴
-        console.log(data);
-        const transformed = data
-          .map((it: any) => {
-            const t = toHMString(it.hours);
-            return {...it, ...t}; // packageName, hours, h, m, hm, totalMinutes
-          })
-          .sort((a: any, b: any) => b.totalMinutes - a.totalMinutes);
-
-        setUsageList(transformed); // data = [{packageName: "...", hours: 1.23}, ...]
-      } catch (error) {
-        console.error(error);
-      }
-    };
-    fetchUsage();
-  }, []);
-
+  // Update filtered usage list when usageList or selectedDate changes
   useEffect(() => {
     if (usageList) {
       const filtered = usageList.filter(it => {
@@ -117,90 +142,285 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
         const yyyy = match[3];
         const formatted = `${yyyy}-${mm}-${dd}`;
 
-        console.log(
-          'Comparing item date:',
-          formatted,
-          'with selectedDate:',
-          selectedDate,
-        );
-
         return formatted === selectedDate;
       });
-      console.log('filtered:', filtered);
       setFilteredUsageList(filtered);
     } else {
       setFilteredUsageList([]);
     }
   }, [usageList, selectedDate]);
-  console.log('Rendered HomeScreen with selectedDate:', filteredUsageList);
+
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const data = await getUsageData(); // ✅ 이제 배열로 들어옴
+        const transformed = data
+          .map((it: any) => {
+            const t = toHMString(it.hours);
+            return {...it, ...t}; // packageName, hours, h, m, hm, totalMinutes
+          })
+          .sort((a: any, b: any) => b.totalMinutes - a.totalMinutes);
+
+        setUsageList(transformed); // data = [{packageName: "...", hours: 1.23}, ...]
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchUsage();
+  }, []);
+
+  // Handle infinite left scroll by prepending older days
+  const handleScroll = (e: any) => {
+    const {contentOffset} = e.nativeEvent;
+    if (contentOffset.x <= 20 && !isLoadingMoreRef.current) {
+      isLoadingMoreRef.current = true;
+      setDays(prevDays => {
+        const firstDayStr = prevDays[0].full;
+        const firstDayDate = new Date(firstDayStr);
+        const labels = ['월', '화', '수', '목', '금', '토', '일'];
+        const newDays = [];
+        for (let i = 1; i <= 7; i++) {
+          const d = new Date(firstDayDate);
+          d.setDate(d.getDate() - i);
+          const weekday = (d.getDay() + 6) % 7;
+          newDays.unshift({
+            full: toYMD(d),
+            day: String(d.getDate()),
+            label: labels[weekday],
+            isSelected: toYMD(d) === selectedDate,
+          });
+        }
+        return [...newDays, ...prevDays];
+      });
+      // After prepending, maintain scroll position to avoid jump
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({x: 280, animated: false});
+        }
+        isLoadingMoreRef.current = false;
+      }, 50);
+    }
+  };
+
+  // Update isSelected in days when selectedDate changes
+  useEffect(() => {
+    setDays(prevDays =>
+      prevDays.map(day => ({
+        ...day,
+        isSelected: day.full === selectedDate,
+      })),
+    );
+  }, [selectedDate]);
+
   return (
-    <SafeAreaView
-      style={{
-        flex: 1,
-        alignItems: 'center',
-        padding: 20,
-        backgroundColor: '#000',
-      }}>
-      <Text style={{fontSize: 24, marginBottom: 10, color: '#fff'}}>
-        Home Screen
-      </Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.dateHeader}>
+        <View style={styles.selectedDateContainer}>
+          <Text style={styles.selectedDateText}>{selectedDate}</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            ref={scrollViewRef}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            contentOffset={{x: 280, y: 0}} // initial offset to show near today
+          >
+            {days.map(({day, label, full, isSelected}, index) => {
+              const isFuture = full > todayYMD;
+              if (isFuture) return null; // Do not render future days
+              return (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => {
+                    setSelectedDate(full);
+                  }}
+                  style={[
+                    styles.dateItem,
+                    isSelected && styles.dateItemSelected,
+                  ]}
+                  activeOpacity={0.7}>
+                  <Text
+                    style={[
+                      styles.dateLabel,
+                      isSelected && styles.dateLabelSelected,
+                    ]}>
+                    {label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.dateDay,
+                      isSelected && styles.dateDaySelected,
+                    ]}>
+                    {day}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
 
-      <Calendar
-        onDayPress={(day: {dateString: React.SetStateAction<string>}) => {
-          setSelectedDate(day.dateString);
-          console.log('Selected date:', day.dateString);
-        }}
-        markedDates={{
-          [selectedDate]: {
-            selected: true,
-            selectedColor: '#00adf5',
-          },
-        }}
-        theme={{
-          backgroundColor: '#000',
-          calendarBackground: '#000',
-          textSectionTitleColor: '#fff',
-          selectedDayBackgroundColor: '#00adf5',
-          selectedDayTextColor: '#ffffff',
-          todayTextColor: '#00adf5',
-          dayTextColor: '#fff',
-          textDisabledColor: '#555',
-          arrowColor: '#00adf5',
-          monthTextColor: '#fff',
-          indicatorColor: '#00adf5',
-          textDayFontWeight: '300',
-          textMonthFontWeight: 'bold',
-          textDayHeaderFontWeight: '300',
-          textDayFontSize: 16,
-          textMonthFontSize: 18,
-          textDayHeaderFontSize: 14,
-        }}
-        style={{width: '100%', marginBottom: 10}}
-      />
+      {/* Circular progress visualization */}
+      <View style={styles.circleContainer}>
+        <View style={styles.circle}>
+          <Text style={styles.circleTitle}>집중한 시간</Text>
+          <Text style={styles.circleTime}>3시간 20분</Text>
+        </View>
+        <View style={styles.circle}>
+          <Text style={styles.circleTitle}>SNS한 시간</Text>
+          <Text style={styles.circleTime}>1시간 15분</Text>
+        </View>
+      </View>
 
-      {usageList === null ? (
-        <>
-          <Text style={{color: '#fff'}}>📱 사용 접근 권한이 필요합니다.</Text>
-          <Button title="권한 설정 열기" onPress={openUsageAccessSettings} />
-        </>
-      ) : filteredUsageList.length > 0 ? (
-        <ScrollView style={{width: '100%'}}>
-          {filteredUsageList.map((item, index) => (
-            <Text key={index} style={{marginVertical: 4, color: '#fff'}}>
-              {item.appName || item.packageName}: {item.hm}
-            </Text>
-          ))}
-        </ScrollView>
-      ) : (
-        <Text style={{color: '#fff'}}>선택한 날짜에 사용 기록이 없습니다.</Text>
-      )}
+      {/* Task list */}
+      <View style={styles.taskList}>
+        {filteredUsageList.map((it, index) => (
+          <TouchableOpacity
+            key={index}
+            onPress={() => handleAppPress(it.packageName)}
+            style={styles.taskItem}
+            activeOpacity={0.7}>
+            {(() => {
+              const uri =
+                it.iconUri ||
+                (it.iconBase64
+                  ? `data:image/png;base64,${it.iconBase64}`
+                  : null) ||
+                (it.icon ? `data:image/png;base64,${it.icon}` : null);
+              if (uri) {
+                return <Image source={{uri}} style={styles.appIcon} />;
+              }
+              return <Ionicons name="apps-outline" size={24} color="#fff" />;
+            })()}
+            <View style={{marginLeft: 12}}>
+              <Text style={styles.taskText}>
+                {it.appName || it.packageName}
+              </Text>
+              <Text style={[styles.taskText, {fontSize: 14, color: '#ccc'}]}>
+                {it.hm}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      <Button
-        title="Go to Settings"
-        onPress={() => navigation.navigate('Settings')}
-      />
+      {/* Floating add button */}
+      <TouchableOpacity style={styles.fab} activeOpacity={0.7}>
+        <Ionicons name="add" size={32} color="#000" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  navButton: {
+    paddingHorizontal: 10,
+  },
+  selectedDateContainer: {
+    flex: 1,
+  },
+  selectedDateText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  dateItem: {
+    alignItems: 'center',
+    width: 40,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  dateItemSelected: {
+    backgroundColor: '#222',
+  },
+  dateDay: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  dateDaySelected: {
+    color: '#4da3ff',
+  },
+  dateLabel: {
+    fontSize: 12,
+    color: '#ccc',
+    marginTop: 2,
+  },
+  dateLabelSelected: {
+    color: '#4da3ff',
+  },
+  circleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 40,
+  },
+  circle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1,
+    borderColor: '#555',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  circleTitle: {
+    color: '#fff',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  circleTime: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  taskList: {
+    // marginTop: 20,
+  },
+  taskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#555',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginBottom: 12,
+  },
+  taskText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  appIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    backgroundColor: '#fff',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+  },
+});
 
 export default HomeScreen;
