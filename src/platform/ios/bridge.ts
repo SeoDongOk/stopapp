@@ -1,6 +1,4 @@
-import {NativeModules, Platform} from 'react-native';
-
-const {ScreenTimeModule} = NativeModules;
+import {Platform, NativeModules} from 'react-native';
 
 export interface UsageData {
   packageName: string;
@@ -10,41 +8,38 @@ export interface UsageData {
   date: string;
 }
 
-export const requestScreenTimePermission = async (): Promise<boolean> => {
-  if (Platform.OS !== 'ios') {
-    throw new Error('This function is only available on iOS');
+export const getUsageData = async (): Promise<UsageData[]> => {
+  if (Platform.OS === 'android') {
+    const {UsageStatsBridge} = NativeModules;
+    if (!UsageStatsBridge) {
+      throw new Error('UsageStatsBridge module not found');
+    }
+    return UsageStatsBridge.getUsageData();
   }
 
-  try {
-    return await ScreenTimeModule.requestAuthorization();
-  } catch (error) {
-    console.error('Failed to request Screen Time permission:', error);
-    throw error;
-  }
+  // iOS는 데이터 접근 불가
+  return [];
 };
 
-export const checkScreenTimePermission = async (): Promise<boolean> => {
-  if (Platform.OS !== 'ios') {
+export const checkUsagePermission = async (): Promise<boolean> => {
+  if (Platform.OS === 'android') {
+    const {UsageStatsBridge} = NativeModules;
+    if (!UsageStatsBridge) {
+      return false;
+    }
+    return UsageStatsBridge.checkPermission();
+  }
+
+  // iOS는 항상 true 반환 (Screen Time 직접 체크 불가)
+  return true;
+};
+
+export const requestUsagePermission = async (): Promise<boolean> => {
+  if (Platform.OS === 'android') {
+    // Android는 Intent로 설정 화면 열기
     return false;
   }
 
-  try {
-    return await ScreenTimeModule.checkPermission();
-  } catch (error) {
-    console.error('Failed to check Screen Time permission:', error);
-    return false;
-  }
-};
-
-export const getIOSUsageData = async (): Promise<UsageData[]> => {
-  if (Platform.OS !== 'ios') {
-    throw new Error('This function is only available on iOS');
-  }
-
-  try {
-    return await ScreenTimeModule.getUsageData();
-  } catch (error) {
-    console.error('Failed to get iOS usage data:', error);
-    throw error;
-  }
+  // iOS는 권한 요청 불필요
+  return true;
 };

@@ -6,8 +6,11 @@ import {
   Platform,
   AppState,
   TouchableOpacity,
+  Alert,
+  Linking,
 } from 'react-native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {checkUsagePermission} from '../platform/bridge';
 
 type OnboardingScreenProps = {
   navigation: NativeStackNavigationProp<any>;
@@ -16,8 +19,6 @@ type OnboardingScreenProps = {
 function OnboardingScreen({navigation}: OnboardingScreenProps) {
   const [appState, setAppState] = useState(AppState.currentState);
   const [isNavigating, setIsNavigating] = useState(false);
-
-  useEffect(() => {}, [navigation]);
 
   const openUsageAccessSettings = () => {
     if (Platform.OS === 'android') {
@@ -28,6 +29,19 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
       } catch (err) {
         console.warn('Failed to open settings:', err);
       }
+    } else if (Platform.OS === 'ios') {
+      // iOS는 Screen Time 설정 안내
+      Alert.alert(
+        'Screen Time 권한 필요',
+        'iOS에서 사용 시간을 추적하려면 설정에서 Screen Time을 활성화해주세요.',
+        [
+          {
+            text: '설정 열기',
+            onPress: () => Linking.openURL('App-Prefs:root=SCREEN_TIME'),
+          },
+          {text: '취소', style: 'cancel'},
+        ],
+      );
     }
   };
 
@@ -39,12 +53,7 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
     setIsNavigating(true);
 
     try {
-      // 방법 1: reset 사용 (권장)
       navigation.replace('MainTabs');
-      // navigation.reset({
-      //   index: 0,
-      //   routes: [{name: 'MainTabs'}],
-      // });
     } catch (error) {
       console.error('❌ Navigation failed:', error);
       setIsNavigating(false);
@@ -52,40 +61,34 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
   }, [navigation, isNavigating]);
 
   const handleGetStarted = async () => {
-    if (Platform.OS === 'android' && NativeModules.UsageStatsBridge) {
-      try {
-        const hasPermission =
-          await NativeModules.UsageStatsBridge.checkPermission();
+    try {
+      const hasPermission = await checkUsagePermission();
 
-        if (hasPermission) {
-          navigateToMainTabs();
-        } else {
-          openUsageAccessSettings();
-        }
-      } catch (e) {
-        console.warn('Permission check failed:', e);
+      if (hasPermission) {
+        navigateToMainTabs();
+      } else {
+        openUsageAccessSettings();
       }
-    } else {
-      navigateToMainTabs();
+    } catch (e) {
+      console.warn('Permission check failed:', e);
+      // 권한 체크 실패 시에도 일단 진행 (iOS의 경우)
+      if (Platform.OS === 'ios') {
+        navigateToMainTabs();
+      }
     }
   };
 
   const checkPermissionAfterSettings = useCallback(async () => {
-    if (Platform.OS === 'android' && NativeModules.UsageStatsBridge) {
-      try {
-        const hasPermission =
-          await NativeModules.UsageStatsBridge.checkPermission();
+    try {
+      const hasPermission = await checkUsagePermission();
 
-        if (hasPermission) {
-          // 짧은 지연 후 네비게이션 (상태 업데이트 대기)
-          setTimeout(() => {
-            navigateToMainTabs();
-          }, 100);
-        } else {
-        }
-      } catch (error) {
-        console.error('Error checking permission:', error);
+      if (hasPermission) {
+        setTimeout(() => {
+          navigateToMainTabs();
+        }, 100);
       }
+    } catch (error) {
+      console.error('Error checking permission:', error);
     }
   }, [navigateToMainTabs]);
 
@@ -111,6 +114,25 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
         alignItems: 'center',
         backgroundColor: '#000',
       }}>
+      <Text
+        style={{
+          fontSize: 24,
+          fontWeight: 'bold',
+          color: '#fff',
+          marginBottom: 20,
+        }}>
+        디지털 웰빙
+      </Text>
+      <Text
+        style={{
+          fontSize: 16,
+          color: '#ccc',
+          marginBottom: 40,
+          textAlign: 'center',
+          paddingHorizontal: 40,
+        }}>
+        앱 사용 시간을 추적하여{'\n'}더 건강한 디지털 습관을 만들어보세요
+      </Text>
       <TouchableOpacity
         onPress={handleGetStarted}
         disabled={isNavigating}
@@ -118,11 +140,37 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
           padding: 20,
           backgroundColor: isNavigating ? '#ccc' : 'orange',
           borderRadius: 10,
+          minWidth: 200,
+          alignItems: 'center',
         }}>
-        <Text style={{fontSize: 16, fontWeight: 'bold'}}>
-          {isNavigating ? 'Loading...' : 'Get Started'}
+        <Text style={{fontSize: 16, fontWeight: 'bold', color: '#000'}}>
+          {isNavigating ? '로딩 중...' : '시작하기'}
         </Text>
       </TouchableOpacity>
+      {Platform.OS === 'android' && (
+        <Text
+          style={{
+            fontSize: 12,
+            color: '#888',
+            marginTop: 20,
+            textAlign: 'center',
+            paddingHorizontal: 40,
+          }}>
+          * 사용 접근 권한이 필요합니다
+        </Text>
+      )}
+      {Platform.OS === 'ios' && (
+        <Text
+          style={{
+            fontSize: 12,
+            color: '#888',
+            marginTop: 20,
+            textAlign: 'center',
+            paddingHorizontal: 40,
+          }}>
+          * Screen Time 권한이 필요합니다
+        </Text>
+      )}
     </SafeAreaView>
   );
 }
