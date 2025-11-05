@@ -273,7 +273,10 @@ const HomeScreen: React.FC<Props> = ({navigation: _navigation}) => {
       </View>
 
       {/* Task list */}
-      <View style={styles.taskList}>
+      <ScrollView
+        style={styles.taskList}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{paddingBottom: 60}}>
         {filteredUsageList.map((it, index) => (
           <TouchableOpacity
             key={index}
@@ -302,12 +305,7 @@ const HomeScreen: React.FC<Props> = ({navigation: _navigation}) => {
             </View>
           </TouchableOpacity>
         ))}
-      </View>
-
-      {/* Floating add button */}
-      <TouchableOpacity style={styles.fab} activeOpacity={0.7}>
-        <Ionicons name="add" size={32} color="#000" />
-      </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 };

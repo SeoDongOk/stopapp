@@ -39,14 +39,16 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
         val todayStart = calendar.timeInMillis
-        // 1년 전
-        calendar.add(Calendar.YEAR, -1)
-        val oneYearAgo = calendar.timeInMillis
+        // 10일 전
+        calendar.add(Calendar.DAY_OF_YEAR, -10)
+        val tenDaysAgo = calendar.timeInMillis
+
+        // This module now only retrieves up to 10 days of data.
 
         val pm = context.packageManager
         val resultArray = Arguments.createArray()
 
-        var dayStart = oneYearAgo
+        var dayStart = tenDaysAgo
         while (dayStart < todayStart + 24L * 60 * 60 * 1000) {
             val dayEnd = dayStart + 24L * 60 * 60 * 1000
             val usageEvents = usageStatsManager.queryEvents(dayStart, dayEnd)

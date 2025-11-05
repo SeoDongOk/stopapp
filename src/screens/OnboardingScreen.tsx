@@ -40,10 +40,11 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
 
     try {
       // 방법 1: reset 사용 (권장)
-      navigation.reset({
-        index: 0,
-        routes: [{name: 'MainTabs'}],
-      });
+      navigation.replace('MainTabs');
+      // navigation.reset({
+      //   index: 0,
+      //   routes: [{name: 'MainTabs'}],
+      // });
     } catch (error) {
       console.error('❌ Navigation failed:', error);
       setIsNavigating(false);
@@ -121,20 +122,6 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
         <Text style={{fontSize: 16, fontWeight: 'bold'}}>
           {isNavigating ? 'Loading...' : 'Get Started'}
         </Text>
-      </TouchableOpacity>
-
-      {/* 디버깅용 */}
-      <TouchableOpacity
-        onPress={() => {
-          navigateToMainTabs();
-        }}
-        style={{
-          marginTop: 20,
-          padding: 15,
-          backgroundColor: '#444',
-          borderRadius: 10,
-        }}>
-        <Text style={{color: 'white'}}>Force Navigate (Debug)</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

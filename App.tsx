@@ -45,6 +45,7 @@ const MainTabs = () => {
     <Tab.Navigator
       screenOptions={({route}: {route: RouteProp<ParamListBase, string>}) => ({
         headerShown: false,
+        lazy: false,
         tabBarIcon: (props: {color: string; size: number}) => (
           <TabBarIcon
             routeName={route.name}
