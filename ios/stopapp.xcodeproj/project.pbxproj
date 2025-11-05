@@ -41,6 +41,7 @@
 		195342C81F9BB26028FB7E72 /* Pods-stopapp-stopappTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-stopapp-stopappTests.debug.xcconfig"; path = "Target Support Files/Pods-stopapp-stopappTests/Pods-stopapp-stopappTests.debug.xcconfig"; sourceTree = "<group>"; };
 		4EB3D89B9592C3D66F4419E4 /* Pods-stopapp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-stopapp.debug.xcconfig"; path = "Target Support Files/Pods-stopapp/Pods-stopapp.debug.xcconfig"; sourceTree = "<group>"; };
 		58412925CBEE8DE7C9398341 /* libPods-stopapp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-stopapp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6641EA582EBB3CAE00A1472F /* stopapp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = stopapp.entitlements; path = stopapp/stopapp.entitlements; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = stopapp/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		8F459D4546CF62A18C190D4F /* Pods-stopapp-stopappTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-stopapp-stopappTests.release.xcconfig"; path = "Target Support Files/Pods-stopapp-stopappTests/Pods-stopapp-stopappTests.release.xcconfig"; sourceTree = "<group>"; };
 		AB06FE6BDC8E31170367F56A /* Pods-stopapp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-stopapp.release.xcconfig"; path = "Target Support Files/Pods-stopapp/Pods-stopapp.release.xcconfig"; sourceTree = "<group>"; };
@@ -89,6 +90,7 @@
 		13B07FAE1A68108700A75B9A /* stopapp */ = {
 			isa = PBXGroup;
 			children = (
+				6641EA582EBB3CAE00A1472F /* stopapp.entitlements */,
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -471,10 +473,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = stopapp/stopapp.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 23DJ5JPTB2;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = stopapp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = com.dongok.stopapp;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -485,7 +490,6 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.dongok.stopapp;
 				PRODUCT_NAME = stopapp;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -500,9 +504,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = stopapp/stopapp.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 23DJ5JPTB2;
 				INFOPLIST_FILE = stopapp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = com.dongok.stopapp;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -513,7 +520,6 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.dongok.stopapp;
 				PRODUCT_NAME = stopapp;
 				SWIFT_VERSION = 5.0;

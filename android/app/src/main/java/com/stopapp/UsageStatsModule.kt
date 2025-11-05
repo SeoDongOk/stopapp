@@ -43,34 +43,54 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
         calendar.add(Calendar.DAY_OF_YEAR, -10)
         val tenDaysAgo = calendar.timeInMillis
 
-        // This module now only retrieves up to 10 days of data.
-
         val pm = context.packageManager
         val resultArray = Arguments.createArray()
 
         var dayStart = tenDaysAgo
         while (dayStart < todayStart + 24L * 60 * 60 * 1000) {
             val dayEnd = dayStart + 24L * 60 * 60 * 1000
+            
+            // queryUsageStats를 우선적으로 사용 (더 정확함)
+            val statsList = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY, 
+                dayStart, 
+                dayEnd
+            )
+            
+            val usageMap = mutableMapOf<String, Long>()
+            
+            // 먼저 UsageStats로 데이터 수집
+            if (statsList != null && statsList.isNotEmpty()) {
+                for (stats in statsList) {
+                    val totalTime = stats.totalTimeInForeground
+                    if (totalTime > 0) {
+                        usageMap[stats.packageName] = totalTime
+                    }
+                }
+            }
+            
+            // UsageEvents로 보완 (더 정확한 이벤트 기반 추적)
             val usageEvents = usageStatsManager.queryEvents(dayStart, dayEnd)
             val event = UsageEvents.Event()
-            val usageMap = mutableMapOf<String, Long>()
+            val eventMap = mutableMapOf<String, Long>()
             var currentPackage: String? = null
             var currentStartTime: Long = 0
 
             while (usageEvents.hasNextEvent()) {
                 usageEvents.getNextEvent(event)
                 when (event.eventType) {
-                    UsageEvents.Event.ACTIVITY_RESUMED -> {
+                    UsageEvents.Event.ACTIVITY_RESUMED, 
+                    UsageEvents.Event.MOVE_TO_FOREGROUND -> {
                         currentPackage = event.packageName
                         currentStartTime = event.timeStamp
                     }
-                    UsageEvents.Event.ACTIVITY_PAUSED -> {
+                    UsageEvents.Event.ACTIVITY_PAUSED,
+                    UsageEvents.Event.MOVE_TO_BACKGROUND -> {
                         if (currentPackage == event.packageName && currentStartTime != 0L) {
                             val duration = event.timeStamp - currentStartTime
-                            if (duration > 0) {
-                                currentPackage?.let {
-                                    usageMap[it] = (usageMap[it] ?: 0L) + duration
-                                }
+                            if (duration > 0 && duration < 24L * 60 * 60 * 1000) { // 24시간 이내만
+                                eventMap[currentPackage!!] = 
+                                    (eventMap[currentPackage] ?: 0L) + duration
                             }
                             currentPackage = null
                             currentStartTime = 0
@@ -78,78 +98,79 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
                     }
                 }
             }
-
-            // Supplement missing apps using queryUsageStats
-            val statsList = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_BEST, dayStart, dayEnd)
-            if (statsList != null) {
-                for (stats in statsList) {
-                    val pkg = stats.packageName
-                    if (!usageMap.containsKey(pkg)) {
-                        usageMap[pkg] = stats.totalTimeInForeground
-                    }
+            
+            // 두 방식 중 더 큰 값을 사용
+            for ((pkg, time) in eventMap) {
+                val currentTime = usageMap[pkg] ?: 0L
+                if (time > currentTime) {
+                    usageMap[pkg] = time
                 }
             }
 
             for ((packageName, totalMs) in usageMap) {
-                // 제외할 패키지들 (런처, 시스템 UI 등)
+                // 제외할 패키지 체크
                 if (shouldExcludePackage(packageName)) {
                     continue
                 }
                 
-                if (totalMs > 0) {
-                    try {
-                        val appInfo = pm.getApplicationInfo(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES)
-                        
-                        // 시스템 앱이지만 사용자가 상호작용하는 앱인지 확인
+                // 최소 사용 시간 필터 (1초 이상)
+                if (totalMs < 1000) {
+                    continue
+                }
+                
+                try {
+                    val appInfo = pm.getApplicationInfo(packageName, 0)
+                    
+                    // 런처 인텐트가 있는 앱만 포함 (사용자가 실행할 수 있는 앱)
+                    val launchIntent = pm.getLaunchIntentForPackage(packageName)
+                    if (launchIntent == null) {
+                        // 시스템 앱 중 사용자 대면 앱인지 확인
                         val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                        val isUpdatedSystemApp = (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-                        
-                        // 업데이트된 시스템 앱이거나, 일반 앱이면 포함
-                        // 순수 시스템 앱 중에서도 사용자가 직접 사용하는 앱들은 포함
-                        if (isSystemApp && !isUpdatedSystemApp && !isUserFacingSystemApp(packageName)) {
+                        if (isSystemApp && !isUserFacingSystemApp(packageName)) {
                             continue
                         }
-                        
-                        val appName = pm.getApplicationLabel(appInfo).toString()
-                        val map = Arguments.createMap()
-                        map.putString("packageName", packageName)
-                        map.putString("appName", appName)
-                        
-                        // 아이콘 가져오기
-                        try {
-                            val icon = pm.getApplicationIcon(appInfo)
-                            if (icon is android.graphics.drawable.BitmapDrawable) {
-                                val bitmap = icon.bitmap
-                                val stream = java.io.ByteArrayOutputStream()
-                                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
-                                val base64Icon = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.DEFAULT)
-                                map.putString("iconBase64", base64Icon)
-                            } else {
-                                // BitmapDrawable이 아닌 경우 변환
-                                val bitmap = android.graphics.Bitmap.createBitmap(
-                                    icon.intrinsicWidth,
-                                    icon.intrinsicHeight,
-                                    android.graphics.Bitmap.Config.ARGB_8888
-                                )
-                                val canvas = android.graphics.Canvas(bitmap)
+                    }
+                    
+                    val appName = pm.getApplicationLabel(appInfo).toString()
+                    val map = Arguments.createMap()
+                    map.putString("packageName", packageName)
+                    map.putString("appName", appName)
+                    
+                    // 아이콘 가져오기
+                    try {
+                        val icon = pm.getApplicationIcon(appInfo)
+                        val bitmap = if (icon is android.graphics.drawable.BitmapDrawable) {
+                            icon.bitmap
+                        } else {
+                            android.graphics.Bitmap.createBitmap(
+                                icon.intrinsicWidth.coerceAtLeast(1),
+                                icon.intrinsicHeight.coerceAtLeast(1),
+                                android.graphics.Bitmap.Config.ARGB_8888
+                            ).also {
+                                val canvas = android.graphics.Canvas(it)
                                 icon.setBounds(0, 0, canvas.width, canvas.height)
                                 icon.draw(canvas)
-                                val stream = java.io.ByteArrayOutputStream()
-                                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
-                                val base64Icon = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.DEFAULT)
-                                map.putString("iconBase64", base64Icon)
                             }
-                        } catch (e: Exception) {
-                            // 아이콘을 가져올 수 없는 경우 null
-                            map.putNull("iconBase64")
                         }
                         
-                        map.putDouble("hours", totalMs / 1000.0 / 3600.0)
-                        map.putString("date", Date(dayStart).toString())
-                        resultArray.pushMap(map)
-                    } catch (e: PackageManager.NameNotFoundException) {
-                        // ignore unknown packages
+                        val stream = java.io.ByteArrayOutputStream()
+                        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+                        val base64Icon = android.util.Base64.encodeToString(
+                            stream.toByteArray(), 
+                            android.util.Base64.DEFAULT
+                        )
+                        map.putString("iconBase64", base64Icon)
+                    } catch (e: Exception) {
+                        map.putNull("iconBase64")
                     }
+                    
+                    map.putDouble("hours", totalMs / 1000.0 / 3600.0)
+                    map.putString("date", Date(dayStart).toString())
+                    resultArray.pushMap(map)
+                } catch (e: PackageManager.NameNotFoundException) {
+                    // 패키지를 찾을 수 없는 경우 무시
+                } catch (e: Exception) {
+                    // 기타 예외 무시
                 }
             }
 
@@ -159,52 +180,91 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
         promise.resolve(resultArray)
     }
 
-    // 제외할 패키지인지 확인
+    // 제외할 패키지인지 확인 (더 보수적으로 변경)
     private fun shouldExcludePackage(packageName: String): Boolean {
-        val lowerPackage = packageName.lowercase()
-        return lowerPackage.contains("launcher") ||
-               lowerPackage.contains(".home") ||
-               lowerPackage.contains("systemui") ||
-               lowerPackage.contains("inputmethod") ||
-               lowerPackage.contains("wallpaper") ||
-               lowerPackage == "android" ||
-               lowerPackage.startsWith("com.android.") && !isUserFacingAndroidApp(lowerPackage)
-    }
-
-    // 사용자가 직접 사용하는 안드로이드 시스템 앱인지 확인
-    private fun isUserFacingAndroidApp(packageName: String): Boolean {
-        val userFacingApps = listOf(
-            "com.android.chrome",
-            "com.android.vending", // Play Store
-            "com.android.contacts",
-            "com.android.calendar",
-            "com.android.camera",
-            "com.android.gallery3d",
-            "com.android.email",
-            "com.android.music",
-            "com.android.settings"
+        // 명시적으로 제외할 시스템 컴포넌트만 제외
+        val excludeList = setOf(
+            "android",
+            "com.android.systemui",
+            "com.android.inputmethod",
+            "com.sec.android.inputmethod",
+            "com.google.android.inputmethod"
         )
-        return userFacingApps.contains(packageName)
+        
+        if (excludeList.contains(packageName)) {
+            return true
+        }
+        
+        val lowerPackage = packageName.lowercase()
+        
+        // 런처만 제외
+        if (lowerPackage.endsWith(".launcher") || 
+            lowerPackage.endsWith(".launcher2") ||
+            lowerPackage.endsWith(".launcher3")) {
+            return true
+        }
+        
+        // 배경화면만 제외
+        if (lowerPackage.contains("wallpaper") && 
+            (lowerPackage.contains("live") || lowerPackage.contains("picker"))) {
+            return true
+        }
+        
+        return false
     }
 
-    // 사용자가 직접 사용하는 시스템 앱인지 확인 (Google, Samsung 등)
+    // 사용자가 직접 사용하는 시스템 앱인지 확인
     private fun isUserFacingSystemApp(packageName: String): Boolean {
-        val userFacingPrefixes = listOf(
+        val userFacingApps = setOf(
+            // Google 앱들
             "com.google.android.youtube",
-            "com.google.android.apps",
-            "com.google.android.gm", // Gmail
+            "com.google.android.apps.maps",
+            "com.google.android.gm",
             "com.google.android.music",
             "com.google.android.videos",
+            "com.google.android.apps.photos",
+            "com.android.chrome",
+            "com.android.vending",
+            
+            // Samsung 앱들
             "com.samsung.android.messaging",
             "com.samsung.android.calendar",
             "com.samsung.android.gallery",
             "com.samsung.android.email",
-            "com.sec.android.app.sbrowser", // Samsung Browser
-            "com.microsoft.office",
+            "com.sec.android.app.sbrowser",
+            "com.samsung.android.contacts",
+            
+            // 기본 안드로이드 앱들
+            "com.android.contacts",
+            "com.android.calendar",
+            "com.android.camera",
+            "com.android.camera2",
+            "com.android.gallery3d",
+            "com.android.email",
+            "com.android.settings",
+            
+            // 주요 서드파티 앱들
+            "com.kakao.talk",
+            "com.nhn.android.webtoon",
+            "com.naver.linewebtoon",
             "com.facebook.katana",
             "com.instagram.android",
             "com.twitter.android",
-            "com.whatsapp"
+            "com.whatsapp",
+            "com.netflix.mediaclient"
+        )
+        
+        // 정확한 패키지명 매칭
+        if (userFacingApps.contains(packageName)) {
+            return true
+        }
+        
+        // prefix 매칭
+        val userFacingPrefixes = listOf(
+            "com.kakao",
+            "com.nhn",
+            "com.naver",
+            "com.microsoft.office"
         )
         
         return userFacingPrefixes.any { packageName.startsWith(it) }
