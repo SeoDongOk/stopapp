@@ -65,16 +65,7 @@ const MainTabs = () => {
 
 function App() {
   return (
-    <NavigationContainer
-      onStateChange={state => {
-        console.log(
-          '🔄 Navigation state changed:',
-          JSON.stringify(state, null, 2),
-        );
-      }}
-      onReady={() => {
-        console.log('✅ Navigation ready');
-      }}>
+    <NavigationContainer>
       <Stack.Navigator
         screenOptions={{headerShown: false}}
         initialRouteName="Onboarding">

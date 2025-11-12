@@ -10,9 +10,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  Alert,
+  Linking,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {getUsageData} from '../platform/android/bridge';
+// import {getUsageData} from '../platform/android/bridge';
+import {getUsageData} from '../platform/bridge';
 
 // 스택 내 라우트 이름 정의
 type RootStackParamList = {
@@ -153,6 +156,23 @@ const HomeScreen: React.FC<Props> = ({navigation: _navigation}) => {
   useEffect(() => {
     const fetchUsage = async () => {
       try {
+        if (Platform.OS === 'ios') {
+          // iOS는 Screen Time API 제약으로 인해 실제 데이터를 가져올 수 없음
+          // 사용자에게 Settings 앱 안내
+          Alert.alert(
+            '사용 시간 확인',
+            'iOS에서는 설정 > Screen Time에서 사용 시간을 확인할 수 있습니다.',
+            [
+              {
+                text: '설정 열기',
+                onPress: () => Linking.openURL('App-Prefs:root=SCREEN_TIME'),
+              },
+              {text: '확인', style: 'cancel'},
+            ],
+          );
+          setUsageList([]);
+          return;
+        }
         const data = await getUsageData(); // ✅ 이제 배열로 들어옴
         const transformed = data
           .map((it: any) => {

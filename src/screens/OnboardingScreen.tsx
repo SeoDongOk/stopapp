@@ -2,12 +2,19 @@ import React, {useEffect, useState, useCallback} from 'react';
 import {
   Text,
   SafeAreaView,
-  NativeModules,
-  Platform,
   AppState,
   TouchableOpacity,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {
+  checkAllPermissions,
+  requestDrawOverlayPermission,
+  requestSleepPermission,
+  requestAccessibilityPermission,
+  type PermissionStatus,
+} from '../platform/bridge';
 
 type OnboardingScreenProps = {
   navigation: NativeStackNavigationProp<any>;
@@ -16,20 +23,23 @@ type OnboardingScreenProps = {
 function OnboardingScreen({navigation}: OnboardingScreenProps) {
   const [appState, setAppState] = useState(AppState.currentState);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [permissions, setPermissions] = useState<PermissionStatus>({
+    drawOverlay: false,
+    notification: false,
+    sleep: false,
+    accessibility: false,
+  });
 
-  useEffect(() => {}, [navigation]);
-
-  const openUsageAccessSettings = () => {
-    if (Platform.OS === 'android') {
-      try {
-        NativeModules.IntentLauncher.startActivity({
-          action: 'android.settings.USAGE_ACCESS_SETTINGS',
-        });
-      } catch (err) {
-        console.warn('Failed to open settings:', err);
-      }
+  // 모든 권한 확인
+  const checkPermissions = useCallback(async () => {
+    try {
+      const perms = await checkAllPermissions();
+      setPermissions(perms);
+      console.log('✅ Permissions checked:', perms);
+    } catch (error) {
+      console.error('❌ Permission check error:', error);
     }
-  };
+  }, []);
 
   const navigateToMainTabs = useCallback(() => {
     if (isNavigating) {
@@ -39,56 +49,101 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
     setIsNavigating(true);
 
     try {
-      // 방법 1: reset 사용 (권장)
       navigation.replace('MainTabs');
-      // navigation.reset({
-      //   index: 0,
-      //   routes: [{name: 'MainTabs'}],
-      // });
     } catch (error) {
       console.error('❌ Navigation failed:', error);
       setIsNavigating(false);
     }
   }, [navigation, isNavigating]);
 
-  const handleGetStarted = async () => {
-    if (Platform.OS === 'android' && NativeModules.UsageStatsBridge) {
-      try {
-        const hasPermission =
-          await NativeModules.UsageStatsBridge.checkPermission();
+  const openDrawOverlaySettings = async () => {
+    try {
+      await requestDrawOverlayPermission();
+    } catch (err) {
+      console.warn('Failed to request overlay permission:', err);
+    }
+  };
 
-        if (hasPermission) {
-          navigateToMainTabs();
-        } else {
-          openUsageAccessSettings();
-        }
-      } catch (e) {
-        console.warn('Permission check failed:', e);
+  const openSleepSettings = async () => {
+    try {
+      await requestSleepPermission();
+    } catch (err) {
+      console.warn('Failed to request sleep permission:', err);
+    }
+  };
+
+  const openAccessibilitySettings = async () => {
+    try {
+      await requestAccessibilityPermission();
+    } catch (err) {
+      console.warn('Failed to request accessibility permission:', err);
+    }
+  };
+
+  const handleGetStarted = async () => {
+    try {
+      // 권한 다시 확인
+      await checkPermissions();
+
+      const allGranted =
+        permissions.drawOverlay &&
+        permissions.notification &&
+        permissions.sleep;
+
+      if (allGranted) {
+        console.log('✅ All permissions granted, navigating to MainTabs');
+        navigateToMainTabs();
+      } else {
+        console.log('❌ Some permissions denied, showing alert');
+
+        const missingPermissions = [];
+        if (!permissions.drawOverlay)
+          missingPermissions.push('• 다른 앱 위에 표시');
+        if (!permissions.notification) missingPermissions.push('• 알림 게시');
+        if (!permissions.sleep) missingPermissions.push('• 수면 감지');
+
+        Alert.alert(
+          '권한이 필요합니다',
+          `다음 권한을 활성화해주세요:\n\n${missingPermissions.join('\n')}`,
+          [
+            {
+              text: '다른 앱 위에 표시',
+              onPress: openDrawOverlaySettings,
+            },
+            {
+              text: '수면 감지',
+              onPress: openSleepSettings,
+            },
+            {
+              text: '접근성 서비스',
+              onPress: openAccessibilitySettings,
+            },
+            {
+              text: '나중에',
+              style: 'cancel',
+              onPress: () => {
+                navigateToMainTabs();
+              },
+            },
+          ],
+        );
       }
-    } else {
+    } catch (e) {
+      console.warn('Permission check failed:', e);
       navigateToMainTabs();
     }
   };
 
   const checkPermissionAfterSettings = useCallback(async () => {
-    if (Platform.OS === 'android' && NativeModules.UsageStatsBridge) {
-      try {
-        const hasPermission =
-          await NativeModules.UsageStatsBridge.checkPermission();
-
-        if (hasPermission) {
-          // 짧은 지연 후 네비게이션 (상태 업데이트 대기)
-          setTimeout(() => {
-            navigateToMainTabs();
-          }, 100);
-        } else {
-        }
-      } catch (error) {
-        console.error('Error checking permission:', error);
-      }
+    try {
+      console.log('🔄 Checking permissions after returning from settings...');
+      await checkPermissions();
+    } catch (error) {
+      console.error('Error checking permissions:', error);
     }
-  }, [navigateToMainTabs]);
+  }, [checkPermissions]);
 
+  // 앱 포커스시 권한 확인
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (appState.match(/inactive|background/) && nextAppState === 'active') {
@@ -103,26 +158,185 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
     };
   }, [appState, checkPermissionAfterSettings]);
 
+  // 초기 권한 확인
+  useEffect(() => {
+    checkPermissions();
+  }, [checkPermissions]);
+
   return (
     <SafeAreaView
       style={{
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
         backgroundColor: '#000',
       }}>
-      <TouchableOpacity
-        onPress={handleGetStarted}
-        disabled={isNavigating}
-        style={{
-          padding: 20,
-          backgroundColor: isNavigating ? '#ccc' : 'orange',
-          borderRadius: 10,
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 20,
         }}>
-        <Text style={{fontSize: 16, fontWeight: 'bold'}}>
-          {isNavigating ? 'Loading...' : 'Get Started'}
+        <Text
+          style={{
+            fontSize: 28,
+            fontWeight: 'bold',
+            color: '#fff',
+            marginBottom: 20,
+          }}>
+          디지털 웰빙
         </Text>
-      </TouchableOpacity>
+
+        <Text
+          style={{
+            fontSize: 16,
+            color: '#ccc',
+            marginBottom: 40,
+            textAlign: 'center',
+          }}>
+          앱 사용 시간을 추적하여{'\n'}더 건강한 디지털 습관을 만들어보세요
+        </Text>
+
+        {/* 권한 상태 표시 */}
+        <Text
+          style={{
+            fontSize: 14,
+            color: '#fff',
+            marginBottom: 15,
+            fontWeight: '600',
+          }}>
+          필요한 권한:
+        </Text>
+
+        <TouchableOpacity
+          onPress={openDrawOverlaySettings}
+          style={{
+            width: '100%',
+            padding: 12,
+            marginBottom: 10,
+            backgroundColor: permissions.drawOverlay ? '#2d5f2e' : '#4a4a4a',
+            borderRadius: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}>
+          <Text
+            style={{
+              color: permissions.drawOverlay ? '#90EE90' : '#fff',
+              fontSize: 12,
+              marginRight: 10,
+            }}>
+            {permissions.drawOverlay ? '✅' : '○'}
+          </Text>
+          <Text
+            style={{
+              color: permissions.drawOverlay ? '#90EE90' : '#ccc',
+              fontSize: 14,
+              flex: 1,
+            }}>
+            다른 앱 위에 표시
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={{
+            width: '100%',
+            padding: 12,
+            marginBottom: 10,
+            backgroundColor: permissions.notification ? '#2d5f2e' : '#4a4a4a',
+            borderRadius: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}>
+          <Text
+            style={{
+              color: permissions.notification ? '#90EE90' : '#fff',
+              fontSize: 12,
+              marginRight: 10,
+            }}>
+            {permissions.notification ? '✅' : '○'}
+          </Text>
+          <Text
+            style={{
+              color: permissions.notification ? '#90EE90' : '#ccc',
+              fontSize: 14,
+              flex: 1,
+            }}>
+            알림 게시
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={openSleepSettings}
+          style={{
+            width: '100%',
+            padding: 12,
+            marginBottom: 10,
+            backgroundColor: permissions.sleep ? '#2d5f2e' : '#4a4a4a',
+            borderRadius: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}>
+          <Text
+            style={{
+              color: permissions.sleep ? '#90EE90' : '#fff',
+              fontSize: 12,
+              marginRight: 10,
+            }}>
+            {permissions.sleep ? '✅' : '○'}
+          </Text>
+          <Text
+            style={{
+              color: permissions.sleep ? '#90EE90' : '#ccc',
+              fontSize: 14,
+              flex: 1,
+            }}>
+            수면 감지
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={openAccessibilitySettings}
+          style={{
+            width: '100%',
+            padding: 12,
+            marginBottom: 30,
+            backgroundColor: permissions.accessibility ? '#2d5f2e' : '#4a4a4a',
+            borderRadius: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}>
+          <Text
+            style={{
+              color: permissions.accessibility ? '#90EE90' : '#fff',
+              fontSize: 12,
+              marginRight: 10,
+            }}>
+            {permissions.accessibility ? '✅' : '○'}
+          </Text>
+          <Text
+            style={{
+              color: permissions.accessibility ? '#90EE90' : '#ccc',
+              fontSize: 14,
+              flex: 1,
+            }}>
+            접근성 서비스
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleGetStarted}
+          disabled={isNavigating}
+          style={{
+            width: '100%',
+            padding: 16,
+            backgroundColor: isNavigating ? '#ccc' : '#ff9500',
+            borderRadius: 10,
+            alignItems: 'center',
+          }}>
+          <Text style={{fontSize: 16, fontWeight: 'bold', color: '#000'}}>
+            {isNavigating ? '로딩 중...' : '시작하기'}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
