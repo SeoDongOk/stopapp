@@ -1,45 +1,55 @@
-import {Platform, NativeModules} from 'react-native';
+import {NativeModules} from 'react-native';
+import {UsageData, PermissionStatus} from '../bridge';
 
-export interface UsageData {
-  packageName: string;
-  appName: string;
-  iconBase64?: string;
-  hours: number;
-  date: string;
+const {HealthKit} = NativeModules;
+
+export async function getIOSUsageData(): Promise<UsageData[]> {
+  try {
+    // iOS에서는 HealthKit이나 다른 방식으로 데이터 수집
+    // 현재는 placeholder
+    return [];
+  } catch (err) {
+    console.warn('iOS UsageData Error:', err);
+    return [];
+  }
 }
 
-export const getUsageData = async (): Promise<UsageData[]> => {
-  if (Platform.OS === 'android') {
-    const {UsageStatsBridge} = NativeModules;
-    if (!UsageStatsBridge) {
-      throw new Error('UsageStatsBridge module not found');
-    }
-    return UsageStatsBridge.getUsageData();
+export async function checkIOSPermissions(): Promise<PermissionStatus> {
+  try {
+    // iOS는 Android와 다른 권한 시스템 사용
+    // HealthKit, NotificationCenter 등의 권한을 확인
+
+    // Placeholder: 모두 false로 반환 (나중에 구현)
+    return {
+      drawOverlay: false,
+      notification: false,
+      sleep: false,
+    };
+  } catch (err) {
+    console.warn('iOS Permission check error:', err);
+    return {
+      drawOverlay: false,
+      notification: false,
+      sleep: false,
+    };
   }
+}
 
-  // iOS는 데이터 접근 불가
-  return [];
-};
-
-export const checkUsagePermission = async (): Promise<boolean> => {
-  if (Platform.OS === 'android') {
-    const {UsageStatsBridge} = NativeModules;
-    if (!UsageStatsBridge) {
-      return false;
-    }
-    return UsageStatsBridge.checkPermission();
+export async function requestIOSPermissions(): Promise<PermissionStatus> {
+  try {
+    // iOS 권한 요청 로직
+    // Placeholder: 모두 false로 반환 (나중에 구현)
+    return {
+      drawOverlay: false,
+      notification: false,
+      sleep: false,
+    };
+  } catch (err) {
+    console.warn('iOS Permission request error:', err);
+    return {
+      drawOverlay: false,
+      notification: false,
+      sleep: false,
+    };
   }
-
-  // iOS는 항상 true 반환 (Screen Time 직접 체크 불가)
-  return true;
-};
-
-export const requestUsagePermission = async (): Promise<boolean> => {
-  if (Platform.OS === 'android') {
-    // Android는 Intent로 설정 화면 열기
-    return false;
-  }
-
-  // iOS는 권한 요청 불필요
-  return true;
-};
+}

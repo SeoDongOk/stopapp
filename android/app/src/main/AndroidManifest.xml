@@ -1,11 +1,31 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- ===== 필요한 4가지 권한 ===== -->
+    <!-- 1. 사용자 정보 접근 허용 -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    
+    <!-- 2. 다른 앱 위에 표시 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.SYSTEM_OVERLAY_WINDOW" />
+    
+    <!-- 3. 알림 게시 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- 4. 수면 감지 권한 -->
+    <uses-permission android:name="com.samsung.android.providers.context.permission.WRITE_SLEEP_LOG" />
+    <uses-permission android:name="com.samsung.android.providers.context.permission.READ_SLEEP_LOG" />
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND" />
+    
+    <!-- 기존 권한들 -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission
-        android:name="android.permission.PACKAGE_USAGE_STATS"
-        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+
+
+    
     <application
         android:name=".MainApplication"
         android:label="@string/app_name"
@@ -13,10 +33,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
         android:theme="@style/AppTheme"
-        android:supportsRtl="true"
-        tools:replace="android:appComponentFactory"
-        android:appComponentFactory="androidx.core.app.CoreComponentFactory">
+        tools:targetApi="31">
 
+        <!-- ✅ React Native 메인 액티비티 -->
         <activity
             android:name=".MainActivity"
             android:label="@string/app_name"
@@ -30,5 +49,25 @@
             </intent-filter>
         </activity>
 
+        <!-- ✅ Accessibility Service 정의 -->
+        <service
+            android:name=".MyAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- ✅ Activity Recognition / Sleep 감지용 브로드캐스트 리시버 (예시) -->
+        <receiver
+            android:name=".SleepReceiver"
+            android:exported="false" />
     </application>
+
 </manifest>
