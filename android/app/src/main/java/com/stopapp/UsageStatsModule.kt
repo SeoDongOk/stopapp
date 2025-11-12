@@ -47,16 +47,7 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
             val resultArray: WritableArray = Arguments.createArray()
             
             // 데이터가 없으면 테스트 데이터 사용
-            val dataToUse = if (usageMap == null || usageMap.isEmpty()) {
-                Log.w(TAG, "❌ usageMap is null or empty, using test data")
-                mapOf(
-                    "com.android.chrome" to 3600000L,  // 1시간
-                    "com.instagram.android" to 1800000L,  // 30분
-                    "com.kakao.talk" to 2700000L  // 45분
-                )
-            } else {
-                usageMap
-            }
+            val dataToUse = usageMap
             
             if (dataToUse.isNotEmpty()) {
                 Log.d(TAG, "✅ Got ${dataToUse.size} apps")
@@ -69,8 +60,9 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
                             val item: WritableMap = Arguments.createMap()
                             item.putString("packageName", packageName)
                             item.putString("appName", getAppName(context, packageName))
+                            item.putString("iconBase64", getAppIconBase64(context, packageName))  // ← 이 줄 추가
                             item.putDouble("hours", hours)
-                            item.putString("date", getCurrentDate()) // ← date 추가
+                            item.putString("date", getCurrentDate())
                             resultArray.pushMap(item)
                             
                             Log.d(TAG, "  📱 $packageName: ${String.format("%.2f", hours)}h")
@@ -125,5 +117,31 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
     private fun getCurrentDate(): String {
         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
         return sdf.format(java.util.Date())
+    }
+
+    private fun getAppIconBase64(context: android.content.Context, packageName: String): String? {
+        return try {
+            val packageManager = context.packageManager
+            val drawable = packageManager.getApplicationIcon(packageName)
+            
+            // Drawable를 Bitmap으로 변환
+            val bitmap = android.graphics.Bitmap.createBitmap(
+                drawable.intrinsicWidth,
+                drawable.intrinsicHeight,
+                android.graphics.Bitmap.Config.ARGB_8888
+            )
+            val canvas = android.graphics.Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            
+            // Bitmap을 Base64로 변환
+            val outputStream = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, outputStream)
+            val imageBytes = outputStream.toByteArray()
+            android.util.Base64.encodeToString(imageBytes, android.util.Base64.DEFAULT)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting app icon for $packageName: ${e.message}")
+            null
+        }
     }
 }
