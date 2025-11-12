@@ -28,9 +28,26 @@ if (!UsageStatsBridge) {
 
 export async function getUsageData(): Promise<UsageData[]> {
   try {
+    console.log('🔄 Calling UsageStatsBridge.getUsageData()...');
+    console.log('UsageStatsBridge:', UsageStatsBridge);
+    console.log('UsageStatsBridge type:', typeof UsageStatsBridge);
+    console.log('getUsageData method:', UsageStatsBridge?.getUsageData);
+
+    if (!UsageStatsBridge) {
+      console.error('❌ UsageStatsBridge is NULL!');
+      return [];
+    }
+
+    if (!UsageStatsBridge.getUsageData) {
+      console.error('❌ getUsageData method does not exist!');
+      return [];
+    }
+
     const rawData = await UsageStatsBridge.getUsageData();
+    console.log('📦 Raw data received:', rawData);
 
     if (!rawData) {
+      console.warn('⚠️ rawData is null or undefined');
       return [];
     }
 
@@ -47,7 +64,7 @@ export async function getUsageData(): Promise<UsageData[]> {
 
     return usageDataArray.sort((a, b) => b.hours - a.hours);
   } catch (err) {
-    console.warn('Android UsageData Error:', err);
+    console.error('❌ Android UsageData Error:', err);
     return [];
   }
 }

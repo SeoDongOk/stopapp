@@ -117,38 +117,38 @@ const HomeScreen: React.FC<Props> = ({navigation: _navigation}) => {
 
   // Update filtered usage list when usageList or selectedDate changes
   useEffect(() => {
+    console.log('🔍 Filtering triggered');
+    console.log('  usageList:', usageList);
+    console.log('  selectedDate:', selectedDate);
+
     if (usageList) {
-      const filtered = usageList.filter(it => {
-        if (!it.date) return false;
+      console.log(`📊 usageList length: ${usageList.length}`);
 
-        // Sat Oct 18 00:00:00 GMT+09:00 2025 → ["Oct", "18", "2025"]
-        const match = it.date.match(/([A-Za-z]{3}) (\d{1,2}) .* (\d{4})$/);
-        if (!match) return false;
-
-        const monthMap: Record<string, string> = {
-          Jan: '01',
-          Feb: '02',
-          Mar: '03',
-          Apr: '04',
-          May: '05',
-          Jun: '06',
-          Jul: '07',
-          Aug: '08',
-          Sep: '09',
-          Oct: '10',
-          Nov: '11',
-          Dec: '12',
-        };
-
-        const mm = monthMap[match[1]] ?? '01';
-        const dd = match[2].padStart(2, '0');
-        const yyyy = match[3];
-        const formatted = `${yyyy}-${mm}-${dd}`;
-
-        return formatted === selectedDate;
+      usageList.forEach((item, idx) => {
+        console.log(
+          `  [${idx}] packageName: ${item.packageName}, date: ${item.date}, hours: ${item.hours}`,
+        );
       });
+
+      const filtered = usageList.filter(it => {
+        if (!it.date) {
+          console.log(`  ❌ [${it.packageName}] No date field`);
+          return false;
+        }
+
+        const isMatch = it.date === selectedDate;
+        console.log(
+          `  ${isMatch ? '✅' : '❌'} [${it.packageName}] date: ${
+            it.date
+          } vs selectedDate: ${selectedDate} = ${isMatch}`,
+        );
+        return isMatch;
+      });
+
+      console.log(`📋 Filtered result: ${filtered.length} apps`);
       setFilteredUsageList(filtered);
     } else {
+      console.log('⚠️ usageList is null');
       setFilteredUsageList([]);
     }
   }, [usageList, selectedDate]);
@@ -156,9 +156,9 @@ const HomeScreen: React.FC<Props> = ({navigation: _navigation}) => {
   useEffect(() => {
     const fetchUsage = async () => {
       try {
+        console.log('🔄 fetchUsage started');
+
         if (Platform.OS === 'ios') {
-          // iOS는 Screen Time API 제약으로 인해 실제 데이터를 가져올 수 없음
-          // 사용자에게 Settings 앱 안내
           Alert.alert(
             '사용 시간 확인',
             'iOS에서는 설정 > Screen Time에서 사용 시간을 확인할 수 있습니다.',
@@ -173,22 +173,50 @@ const HomeScreen: React.FC<Props> = ({navigation: _navigation}) => {
           setUsageList([]);
           return;
         }
-        const data = await getUsageData(); // ✅ 이제 배열로 들어옴
+
+        const data = await getUsageData();
+        console.log('📥 Raw data from getUsageData:', data);
+
+        const MIN_HOURS = 10 / 60;
+        console.log(`📊 MIN_HOURS threshold: ${MIN_HOURS} (10분)`);
+
         const transformed = data
+          .filter((it: any) => {
+            const isValid = it.hours >= MIN_HOURS;
+            console.log(
+              `  ${isValid ? '✅' : '❌'} [${it.packageName}] hours: ${
+                it.hours
+              } >= ${MIN_HOURS} = ${isValid}`,
+            );
+            return isValid;
+          })
           .map((it: any) => {
             const t = toHMString(it.hours);
-            return {...it, ...t}; // packageName, hours, h, m, hm, totalMinutes
+            console.log(
+              `📊 ${it.appName || it.packageName}: ${it.hours}시간 (${
+                t.hm
+              }) | date: ${it.date}`,
+            );
+            return {...it, ...t};
           })
           .sort((a: any, b: any) => b.totalMinutes - a.totalMinutes);
 
-        setUsageList(transformed); // data = [{packageName: "...", hours: 1.23}, ...]
+        console.log(`✅ Final transformed data: ${transformed.length}개`);
+        transformed.forEach((item, idx) => {
+          console.log(
+            `  [${idx}] ${item.appName}: ${item.hours}h, date: ${item.date}`,
+          );
+        });
+
+        setUsageList(transformed);
       } catch (error) {
-        console.error(error);
+        console.error('❌ 사용 데이터 조회 에러:', error);
+        Alert.alert('오류', '앱 사용 시간을 불러올 수 없습니다.');
       }
     };
+
     fetchUsage();
   }, []);
-
   // Handle infinite left scroll by prepending older days
   const handleScroll = (e: any) => {
     const {contentOffset} = e.nativeEvent;

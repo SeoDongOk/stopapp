@@ -13,6 +13,7 @@ import {
   requestDrawOverlayPermission,
   requestSleepPermission,
   requestAccessibilityPermission,
+  requestNotificationPermission,
   type PermissionStatus,
 } from '../platform/bridge';
 
@@ -63,6 +64,13 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
       console.warn('Failed to request overlay permission:', err);
     }
   };
+  const openNotificationSettings = async () => {
+    try {
+      await requestNotificationPermission();
+    } catch (err) {
+      console.warn('Failed to request notification permission:', err);
+    }
+  };
 
   const openSleepSettings = async () => {
     try {
@@ -106,18 +114,18 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
           '권한이 필요합니다',
           `다음 권한을 활성화해주세요:\n\n${missingPermissions.join('\n')}`,
           [
-            {
-              text: '다른 앱 위에 표시',
-              onPress: openDrawOverlaySettings,
-            },
-            {
-              text: '수면 감지',
-              onPress: openSleepSettings,
-            },
-            {
-              text: '접근성 서비스',
-              onPress: openAccessibilitySettings,
-            },
+            // {
+            //   text: '다른 앱 위에 표시',
+            //   onPress: openDrawOverlaySettings,
+            // },
+            // {
+            //   text: '수면 감지',
+            //   onPress: openSleepSettings,
+            // },
+            // {
+            //   text: '접근성 서비스',
+            //   onPress: openAccessibilitySettings,
+            // },
             {
               text: '나중에',
               style: 'cancel',
@@ -237,6 +245,7 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
         </TouchableOpacity>
 
         <TouchableOpacity
+          onPress={openNotificationSettings}
           style={{
             width: '100%',
             padding: 12,

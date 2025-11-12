@@ -88,15 +88,23 @@ class PermissionHelper(reactContext: ReactApplicationContext) :
             val context = reactApplicationContext
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                // Android 13+: 알림 설정으로 이동
+                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
                 context.startActivity(intent)
-                promise.resolve(false)
             } else {
-                promise.resolve(true)
+                // Android 12 이하: 앱 설정으로 이동
+                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", context.packageName, null)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
             }
+            promise.resolve(false)
         } catch (e: Exception) {
+            android.util.Log.e("PermissionHelper", "Notification request error: ${e.message}")
             promise.reject("ERROR", e.message)
         }
     }
@@ -127,18 +135,29 @@ class PermissionHelper(reactContext: ReactApplicationContext) :
         try {
             val context = reactApplicationContext
             
+            // Samsung Health 앱으로 이동 시도
             val intent = Intent().apply {
                 action = "android.intent.action.VIEW"
                 data = Uri.parse("samsunghealth://")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             
             if (intent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(intent)
+                android.util.Log.d("PermissionHelper", "Opening Samsung Health app")
                 promise.resolve(false)
             } else {
+                // Samsung Health 없으면 Play Store로 이동
+                val playStoreIntent = Intent(Intent.ACTION_VIEW).apply {
+                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.samsung.android.app.shealth")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(playStoreIntent)
+                android.util.Log.d("PermissionHelper", "Samsung Health not installed, opening Play Store")
                 promise.resolve(false)
             }
         } catch (e: Exception) {
+            android.util.Log.e("PermissionHelper", "Sleep request error: ${e.message}")
             promise.reject("ERROR", e.message)
         }
     }
