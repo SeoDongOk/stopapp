@@ -184,12 +184,13 @@ const HomeScreen: React.FC<Props> = ({navigation: _navigation}) => {
           .filter((it: any) => {
             const isValid = it.hours >= MIN_HOURS;
             console.log(
-              `  ${isValid ? '✅' : '❌'} [${it.packageName}] hours: ${
-                it.hours
-              } >= ${MIN_HOURS} = ${isValid}`,
+              `  ${isValid ? '✅' : '❌'} [${it.packageName}] appName: ${
+                it.appName
+              }, iconBase64: ${it.iconBase64 ? '있음' : '없음'}`,
             );
             return isValid;
           })
+
           .map((it: any) => {
             const t = toHMString(it.hours);
             console.log(

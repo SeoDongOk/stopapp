@@ -46,13 +46,10 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
             
             val resultArray: WritableArray = Arguments.createArray()
             
-            // 데이터가 없으면 테스트 데이터 사용
-            val dataToUse = usageMap
-            
-            if (dataToUse.isNotEmpty()) {
-                Log.d(TAG, "✅ Got ${dataToUse.size} apps")
+            if (usageMap != null && usageMap.isNotEmpty()) {
+                Log.d(TAG, "✅ Got ${usageMap.size} apps")
                 
-                for ((packageName, usageTime) in dataToUse) {
+                for ((packageName, usageTime) in usageMap) {
                     try {
                         val hours = usageTime.toDouble() / (1000.0 * 60.0 * 60.0)
                         
@@ -60,17 +57,19 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
                             val item: WritableMap = Arguments.createMap()
                             item.putString("packageName", packageName)
                             item.putString("appName", getAppName(context, packageName))
-                            item.putString("iconBase64", getAppIconBase64(context, packageName))  // ← 이 줄 추가
+                            item.putString("iconBase64", getAppIconBase64(context, packageName))
                             item.putDouble("hours", hours)
                             item.putString("date", getCurrentDate())
                             resultArray.pushMap(item)
                             
-                            Log.d(TAG, "  📱 $packageName: ${String.format("%.2f", hours)}h")
+                            Log.d(TAG, "  📱 ${getAppName(context, packageName)}: ${String.format("%.2f", hours)}h")
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error processing app: $packageName", e)
                     }
                 }
+            } else {
+                Log.w(TAG, "❌ usageMap is null or empty")
             }
             
             Log.d(TAG, "✅ Resolving with ${resultArray.size()} apps")
@@ -108,8 +107,15 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
             val packageManager = context.packageManager
             val applicationInfo = packageManager.getApplicationInfo(packageName, 0)
             val label = packageManager.getApplicationLabel(applicationInfo)
-            label.toString()
+            val appName = label.toString()
+            
+            if (appName.isEmpty() || appName == packageName) {
+                packageName
+            } else {
+                appName
+            }
         } catch (e: Exception) {
+            Log.w(TAG, "Failed to get app name for $packageName: ${e.message}")
             packageName
         }
     }
@@ -120,28 +126,83 @@ class UsageStatsModule(reactContext: ReactApplicationContext) :
     }
 
     private fun getAppIconBase64(context: android.content.Context, packageName: String): String? {
-        return try {
-            val packageManager = context.packageManager
-            val drawable = packageManager.getApplicationIcon(packageName)
-            
-            // Drawable를 Bitmap으로 변환
-            val bitmap = android.graphics.Bitmap.createBitmap(
-                drawable.intrinsicWidth,
-                drawable.intrinsicHeight,
-                android.graphics.Bitmap.Config.ARGB_8888
-            )
-            val canvas = android.graphics.Canvas(bitmap)
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
-            drawable.draw(canvas)
-            
-            // Bitmap을 Base64로 변환
-            val outputStream = java.io.ByteArrayOutputStream()
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, outputStream)
-            val imageBytes = outputStream.toByteArray()
-            android.util.Base64.encodeToString(imageBytes, android.util.Base64.DEFAULT)
+    Log.d(TAG, "🔍 [ICON] Trying to get icon for: $packageName")
+    
+    return try {
+        val packageManager = context.packageManager
+        
+        // ✅ 1단계: 앱 정보 확인
+        val appInfo = try {
+            packageManager.getApplicationInfo(packageName, 0)
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting app icon for $packageName: ${e.message}")
-            null
+            Log.w(TAG, "❌ [ICON] App not found: $packageName - ${e.message}")
+            return null
         }
+        
+        // ✅ 2단계: 아이콘 가져오기
+        val drawable = try {
+            packageManager.getApplicationIcon(appInfo)
+        } catch (e: Exception) {
+            Log.w(TAG, "❌ [ICON] Failed to get drawable: $packageName - ${e.message}")
+            return null
+        }
+        
+        if (drawable == null) {
+            Log.w(TAG, "❌ [ICON] Drawable is null for $packageName")
+            return null
+        }
+        
+        Log.d(TAG, "✅ [ICON] Got drawable for $packageName")
+        
+        // ✅ 3단계: 비트맵 생성
+        val targetSize = 48
+        val bitmap = try {
+            android.graphics.Bitmap.createBitmap(
+                targetSize,
+                targetSize,
+                android.graphics.Bitmap.Config.RGB_565
+            )
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "❌ [ICON] Out of memory for $packageName")
+            return null
+        }
+        
+        val canvas = android.graphics.Canvas(bitmap)
+        drawable.setBounds(0, 0, targetSize, targetSize)
+        drawable.draw(canvas)
+        
+        Log.d(TAG, "✅ [ICON] Bitmap created for $packageName")
+        
+        // ✅ 4단계: 압축
+        val outputStream = java.io.ByteArrayOutputStream()
+        val compressed = bitmap.compress(
+            android.graphics.Bitmap.CompressFormat.JPEG, 
+            75, 
+            outputStream
+        )
+        
+        if (!compressed) {
+            Log.w(TAG, "❌ [ICON] Compression failed for $packageName")
+            bitmap.recycle()
+            return null
+        }
+        
+        bitmap.recycle()
+        
+        // ✅ 5단계: Base64 인코딩
+        val imageBytes = outputStream.toByteArray()
+        val base64 = android.util.Base64.encodeToString(
+            imageBytes, 
+            android.util.Base64.NO_WRAP
+        )
+        
+        Log.d(TAG, "✅ [ICON] SUCCESS for $packageName: ${base64.length} chars (${imageBytes.size} bytes)")
+        base64
+        
+    } catch (e: Exception) {
+        Log.e(TAG, "❌ [ICON] Unexpected error for $packageName: ${e.javaClass.simpleName} - ${e.message}")
+        e.printStackTrace()
+        null
     }
+}
 }
