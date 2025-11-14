@@ -309,18 +309,6 @@ const HomeScreen: React.FC<Props> = ({navigation: _navigation}) => {
         </View>
       </View>
 
-      {/* Circular progress visualization */}
-      <View style={styles.circleContainer}>
-        <View style={styles.circle}>
-          <Text style={styles.circleTitle}>집중한 시간</Text>
-          <Text style={styles.circleTime}>3시간 20분</Text>
-        </View>
-        <View style={styles.circle}>
-          <Text style={styles.circleTitle}>SNS한 시간</Text>
-          <Text style={styles.circleTime}>1시간 15분</Text>
-        </View>
-      </View>
-
       {/* Task list */}
       <ScrollView
         style={styles.taskList}

@@ -7,35 +7,53 @@ import {
 } from '@react-navigation/native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import {Image} from 'react-native'; // 이 줄 추가!
 
 import HomeScreen from './src/screens/HomeScreen';
 import StatsScreen from './src/screens/StatsScreen';
+import TimelineScreen from './src/screens/TimeLineScreen';
 // import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const stackActive = require('./src/assets/active_stack.png');
+const stackUnactive = require('./src/assets/unactive_stack.png');
+const graphActive = require('./src/assets/active_grahp.png');
+const graphUnactive = require('./src/assets/unactive_grahp.png');
 
 const TabBarIcon: React.FC<{
   routeName: string;
-  color: string;
+  focused: boolean;
   size: number;
-}> = ({routeName, color, size}) => {
-  let iconName = 'apps'; // 기본 아이콘 설정 (중요!)
+}> = ({routeName, focused, size}) => {
+  // 모든 탭에 stack 아이콘 사용 (active/unactive만 구분)
+  if (routeName === '통계') {
+    const iconSource = focused ? graphActive : graphUnactive;
+    return (
+      <Image
+        source={iconSource}
+        style={{
+          width: size,
+          height: size,
+          resizeMode: 'contain',
+        }}
+      />
+    );
+  } else {
+    const iconSource = focused ? stackActive : stackUnactive;
 
-  // 한글 이름에 맞게 수정
-  if (routeName === '습관') {
-    iconName = 'home';
-  } else if (routeName === '통계') {
-    iconName = 'bar-chart';
-  } else if (routeName === '설정') {
-    iconName = 'settings';
+    return (
+      <Image
+        source={iconSource}
+        style={{
+          width: size,
+          height: size,
+          resizeMode: 'contain',
+        }}
+      />
+    );
   }
-
-  console.log('TabBarIcon - routeName:', routeName, 'iconName:', iconName);
-
-  return <Ionicons name={iconName} size={size} color={color} />;
 };
 
 const MainTabs = () => {
@@ -46,10 +64,14 @@ const MainTabs = () => {
       screenOptions={({route}: {route: RouteProp<ParamListBase, string>}) => ({
         headerShown: false,
         lazy: false,
-        tabBarIcon: (props: {color: string; size: number}) => (
+        tabBarIcon: (props: {
+          color: string;
+          size: number;
+          focused: boolean;
+        }) => (
           <TabBarIcon
             routeName={route.name}
-            color={props.color}
+            focused={props.focused}
             size={props.size}
           />
         ),
@@ -57,6 +79,7 @@ const MainTabs = () => {
         tabBarInactiveTintColor: 'gray',
       })}>
       <Tab.Screen name="습관" component={HomeScreen} />
+      <Tab.Screen name="타임라인" component={TimelineScreen} />
       <Tab.Screen name="통계" component={StatsScreen} />
       {/* <Tab.Screen name="설정" component={SettingsScreen} /> */}
     </Tab.Navigator>

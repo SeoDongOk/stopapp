@@ -192,3 +192,17 @@ export async function requestAndroidAccessibility(): Promise<boolean> {
     return false;
   }
 }
+export async function requestSamsungHealthPermission(): Promise<boolean> {
+  try {
+    if (!PermissionHelper) {
+      console.error('❌ PermissionHelper not available');
+      return false;
+    }
+    console.log('🔄 Requesting Samsung Health permission...');
+    const result = await PermissionHelper.requestSamsungHealthPermission();
+    return result ?? false;
+  } catch (err) {
+    console.error('❌ Failed to request Samsung Health permission:', err);
+    return false;
+  }
+}

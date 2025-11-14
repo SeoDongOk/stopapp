@@ -14,6 +14,7 @@ import {
   requestSleepPermission,
   requestAccessibilityPermission,
   requestNotificationPermission,
+  requestSamsungHealthPermission,
   type PermissionStatus,
 } from '../platform/bridge';
 
@@ -29,6 +30,7 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
     notification: false,
     sleep: false,
     accessibility: false,
+    samsungHealth: false,
   });
 
   // 모든 권한 확인
@@ -85,6 +87,13 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
       await requestAccessibilityPermission();
     } catch (err) {
       console.warn('Failed to request accessibility permission:', err);
+    }
+  };
+  const openSamsungHealthSettings = async () => {
+    try {
+      await requestSamsungHealthPermission();
+    } catch (err) {
+      console.warn('Failed to request Samsung Health permission:', err);
     }
   };
 
@@ -298,7 +307,35 @@ function OnboardingScreen({navigation}: OnboardingScreenProps) {
               fontSize: 14,
               flex: 1,
             }}>
-            수면 감지
+            배터리 최적화 제외
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={openSamsungHealthSettings}
+          style={{
+            width: '100%',
+            padding: 12,
+            marginBottom: 10,
+            backgroundColor: permissions.samsungHealth ? '#2d5f2e' : '#4a4a4a',
+            borderRadius: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}>
+          <Text
+            style={{
+              color: permissions.samsungHealth ? '#90EE90' : '#fff',
+              fontSize: 12,
+              marginRight: 10,
+            }}>
+            {permissions.samsungHealth ? '✅' : '○'}
+          </Text>
+          <Text
+            style={{
+              color: permissions.samsungHealth ? '#90EE90' : '#ccc',
+              fontSize: 14,
+              flex: 1,
+            }}>
+            수면 데이터 접근
           </Text>
         </TouchableOpacity>
 

@@ -5,6 +5,7 @@ import {
   requestDrawOverlayPermission as requestAndroidOverlay,
   requestNotificationPermission as requestAndroidNotification,
   requestSleepPermission as requestAndroidSleep,
+  requestSamsungHealthPermission as requestAndroidSamsungHealth,
   checkAndroidAccessibility,
   requestAndroidAccessibility,
 } from './android/bridge';
@@ -27,6 +28,7 @@ export interface PermissionStatus {
   notification: boolean;
   sleep: boolean;
   accessibility: boolean;
+  samsungHealth?: boolean;
 }
 
 // ===== 사용 데이터 조회 =====
@@ -96,6 +98,14 @@ export const checkAccessibilityPermission = async (): Promise<boolean> => {
 export const requestAccessibilityPermission = async (): Promise<boolean> => {
   if (Platform.OS === 'android') {
     return requestAndroidAccessibility();
+  }
+  return false;
+};
+export const requestSamsungHealthPermission = async (): Promise<boolean> => {
+  if (Platform.OS === 'android') {
+    return requestAndroidSamsungHealth();
+  } else if (Platform.OS === 'ios') {
+    return requestIOSPermissions().then(perms => perms.sleep);
   }
   return false;
 };
